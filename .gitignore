@@ -44,3 +44,6 @@ Thumbs.db
 *.swp
 *.swo
 
+
+# Local chain deployments differ per machine; public testnet deployments are committed
+contracts/deployments/local.json

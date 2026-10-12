@@ -1,5 +1,9 @@
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { chainApi } from './scripts/chain-server.mjs'
+
+// Server-only settings (GEMINI_API_KEY, CHAIN_NETWORK, CHAIN_KEY...) can live in an optional .env; shell variables win.
+try { process.loadEnvFile() } catch {}
 
 // winget install path; shells opened before install don't have it on PATH yet
 const WIN_EXE = 'C:\\Program Files (x86)\\cloudflared\\cloudflared.exe'
@@ -65,5 +69,5 @@ const gemini = {
 
 export default {
   server: { port: 5173, strictPort: true, allowedHosts: ['preview.amsham.net'] },
-  plugins: [tunnel, gemini],
+  plugins: [tunnel, gemini, chainApi],
 }

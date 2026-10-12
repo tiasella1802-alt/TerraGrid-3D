@@ -2,6 +2,8 @@
 
 One line per shipped TODO item. Newest first.
 
+- 2026-10-12 — Blockchain verification (IEEE ClimateChain, climate data track): `RetrofitRegistry` smart contract records each funded building's evidence hash and releases the rebate only on measured improvement (roof heat vs neighbours for cool roofs and trees, annual energy for other measures); no double funding, separate council and verifier roles, sensor readings sealed in batches. Dev-server `/api/chain/*`, ledger in the Deliver panel, Check evidence in the popup. Local chain (`npm run chain`) or Sepolia; 14 rule checks in `npm run chain:test`.
+
 - 2026-10-04 — docs: README rewritten for the current app (four steps, energy model, Gemini, sensor) with the required third-party & AI tools disclosure.
 - 2026-10-04 — Sensor pin no longer inherits the Sensor button box (styles scoped to #sensor-btn).
 - 2026-10-04 — Street sensor pin fixed at 104 Clarence St, Sydney CBD.

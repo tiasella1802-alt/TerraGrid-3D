@@ -210,6 +210,7 @@ $('deliver').onclick = () => {
   if (!document.body.classList.contains('scenario')) return;
   document.body.classList.add('deliver');
   renderProgram();
+  ledgerApi('status').then((s) => (ledger = s), () => (ledger = null)).then(renderLedger);
   if (!document.body.classList.contains('briefed')) makeBrief();
 };
 $('d-letters').onclick = () => (last?.chosen.length ? sendOffers() : $('plan').onclick());
@@ -1317,11 +1318,17 @@ function progHtml(f) {
   const r = prog[pk(f.id)], badge = (t) => `<div class="bp-st" style="--c:${STAGES[r.st][1]}">${t}</div>`;
   if (view === 'council') {
     if (!r) return '';
+    // With the ledger up, "Verify" opens a measurement form and the smart contract decides; offline it just advances.
+    // Energy retrofits are checked against meter data, not the satellite.
+    const form = r.st === 'coated' && ledger && r.chain?.enrol;
+    const label = r.st === 'coated' && (r.ev?.base?.metric ?? metricOf(f.properties)) === 'energy' ? 'Verify with meter data' : NEXT[r.st]?.[0];
     return `<div class="bp-prog">${badge([STAGES[r.st][0], r.code, r.via && `via ${r.via}`].filter(Boolean).join(' · '))}` +
-      (NEXT[r.st] ? `<button class="bp-btn" data-act="next">${NEXT[r.st][0]}</button>` : '') +
-      '</div>';
+      chainHtml(r) +
+      (NEXT[r.st] ? `<button class="bp-btn" data-act="${form ? 'measure' : 'next'}">${label}</button>` : '') +
+      (form ? verifyFormHtml(r) : '') + '</div>';
   }
-  if (r?.mine) return `<div class="bp-prog">${badge(`Your application: ${STAGES[r.st][0]}`)}<div class="bp-note">${MINE[r.st]}</div></div>`;
+  if (r?.mine) return `<div class="bp-prog">${badge(`Your application: ${STAGES[r.st][0]}`)}<div class="bp-note">${MINE[r.st]}</div>` +
+    (r.chain?.enrol ? `<div class="bp-note">Each step is recorded on a public ledger, so the council's decision can be checked by anyone.</div>` : '') + '</div>';
   return `<div class="bp-prog">${r?.st === 'offered' ? badge('This building qualifies for a fully funded energy retrofit. Got a letter? Enter its code.') : ''}<div class="bp-q">${fix(f.properties)[0]} could save about <b>${CITY.cur}${saving(f)}/yr</b> on energy for this building.</div>` +
     '<button class="bp-btn" data-act="apply">Apply for a funded retrofit</button>' +
     '<form class="bp-form" hidden novalidate><input name="email" type="email" placeholder="Your email" autocomplete="email">' +
@@ -1336,14 +1343,21 @@ function wireProg(el, f) {
   box.onclick = (e) => {
     const act = e.target.dataset.act, r = prog[pk(f.id)];
     if (act === 'apply') e.target.hidden = true, box.querySelector('form').hidden = false, box.querySelector('input').focus();
+    if (act === 'measure') e.target.hidden = true, box.querySelector('[data-f=verify]').hidden = false, box.querySelector('[data-f=verify] input').focus();
+    if (act === 'check') checkEvidence(f, r, e.target);
     if (act === 'next') {
       r.st = NEXT[r.st][1];
       r.t = Date.now();
       if (r.st === 'enrolled' && !r.via) r.via = 'rates check';
       saveProg(); redraw();
+      sync(f, r).then(redraw2);
     }
   };
-  const form = box.querySelector('form');
+  // Redraw whichever .bp-prog is current (redraw() replaced the one this closure captured).
+  const redraw2 = () => { const b = el.querySelector('.bp-prog'); if (b) b.outerHTML = progHtml(f), wireProg(el, f); };
+  const vf = box.querySelector('[data-f=verify]');
+  if (vf) wireVerify(vf, f, redraw2);
+  const form = box.querySelector('form:not([data-f])');
   if (!form) return;
   const err = (t) => (form.querySelector('.bp-err').textContent = t);
   form.oninput = () => err('');
@@ -1360,8 +1374,164 @@ function wireProg(el, f) {
       prog[pk(f.id)] = { ...r, st: !r || r.st === 'offered' ? 'applied' : r.st, via: r?.via ?? 'rates number', mine: true, t: Date.now() };
     } else return err('Enter the code from your letter, or your rates notice number.');
     saveProg(); redraw();
+    sync(f, prog[pk(f.id)]).then(redraw2);
   };
 }
+
+// ---- Ledger: pay for measured performance (contracts/RetrofitRegistry.sol via /api/chain, see scripts/chain-server.mjs) ----
+// Enrolling a building writes its baseline evidence's SHA-256 to the chain; installing records the date; verifying sends
+// the after-work measurement and the contract releases the rebate only if the building improved by the agreed amount.
+// Evidence JSON stays with the record here, so anyone can re-hash it and compare with the chain. Offline, the program
+// still works and stays in this browser, as before.
+// Metric: cool roofs and trees change roof heat (°C over nearby roofs on the same satellite pass, so the weather on the
+// day doesn't count); every other measure is judged on annual energy use.
+let ledger = null; // /api/chain/status when the chain is up, else null
+const ledgerApi = (path, body) => fetch(`/api/chain/${path}`, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : undefined)
+  .then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return j; });
+const sha = async (obj) => '0x' + [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(obj))))]
+  .map((b) => b.toString(16).padStart(2, '0')).join('');
+const HEAT_MIN = 1.0; // °C less excess heat the program requires before paying (set in the funding agreement)
+const ENERGY_SHARE = 0.5; // share of the predicted energy saving that must show up in the meter data
+const metricOf = (q) => ((q.best === 'roofs' || q.best === 'trees') && (q.lst0 ?? q.lst) != null ? 'heat' : 'energy');
+const fmtGain = (m, v) => (m === 'heat' ? `${v.toFixed(1)}°C` : `${(v / 1000).toFixed(1)} MWh/yr`);
+const short = (h) => `${h.slice(0, 8)}…${h.slice(-4)}`;
+const cash = (v) => `${CITY.cur}${v >= 1e4 ? `${Math.round(v / 1000)}k` : Math.round(v).toLocaleString()}`;
+const txLink = (x) => (x.url ? `<a href="${x.url}" target="_blank" rel="noopener">${short(x.tx)}</a>` : short(x.tx));
+
+// Median of today's satellite roof temperature for buildings within 250 m (not the building itself).
+function nearMedian(f) {
+  const [x, y] = mid(f.geometry.coordinates[0]), kx = Math.cos((y * Math.PI) / 180) * 111320, ky = 110540;
+  const t = buildings.filter((b) => b !== f && (b.properties.lst0 ?? b.properties.lst) != null && (() => {
+    const [u, v] = mid(b.geometry.coordinates[0]);
+    return Math.hypot((u - x) * kx, (v - y) * ky) < 250;
+  })()).map((b) => b.properties.lst0 ?? b.properties.lst).sort((a, b) => a - b);
+  return t.length ? { med: t[t.length >> 1], n: t.length } : { med: lstMed, n: 0 }; // no neighbours: the city median
+}
+
+function baselineEvidence(f, r) {
+  const q = f.properties, metric = metricOf(q), [measure, cap, usd] = fix(q), at = new Date().toISOString();
+  const base = { v: 1, kind: 'baseline', building: pk(f.id), place: r.addr ?? null, measure, rebate: Math.round(cap), metric };
+  if (metric === 'heat') {
+    const roof = q.lst0 ?? q.lst, { med, n } = nearMedian(f), excess = +(roof - med).toFixed(2);
+    return { ...base, value: excess, unit: '°C over nearby roofs', min_gain: HEAT_MIN, roof_c: +roof.toFixed(2), nearby_median_c: +med.toFixed(2),
+      nearby_roofs: n, radius_m: 250, source: CITY.surf ? 'TerraGrid summer roof heat model (no Landsat scene for this city)' : `Landsat 8 Collection 2 Level-2 surface temperature, ${LANDSAT.day}`, recorded: at };
+  }
+  const saving = Math.round(usd / CITY['kwh$']);
+  return { ...base, value: q.kwh, unit: 'kWh/yr', min_gain: Math.round(saving * ENERGY_SHARE), predicted_saving_kwh: saving,
+    source: 'TerraGrid energy model estimate (floor area × benchmark intensity); replace with 12 months of metered use', recorded: at };
+}
+
+// Bring the chain up to the record's stage: enrol (with baseline evidence), then mark installed. Verification has its own form.
+async function sync(f, r) {
+  if (!ledger || !r) return;
+  try {
+    if ((r.st === 'enrolled' || r.st === 'coated') && !r.chain?.enrol) {
+      const ev = baselineEvidence(f, r), hash = await sha(ev);
+      const x = await ledgerApi('enrol', { id: pk(f.id), metric: ev.metric, baseline: ev.value, minGain: ev.min_gain, rebate: ev.rebate, evidence: hash });
+      r.ev = { base: ev, baseHash: hash };
+      r.chain = { enrol: x, last: { ...x, what: 'Enrolled' } };
+    }
+    if (r.st === 'coated' && r.chain?.enrol && !r.chain.install) {
+      const x = await ledgerApi('install', { id: pk(f.id) });
+      r.chain.install = x;
+      r.chain.last = { ...x, what: 'Installed' };
+    }
+    delete r.chainErr;
+  } catch (e) {
+    r.chainErr = e.message;
+  }
+  saveProg();
+  renderLedger();
+}
+
+function chainHtml(r) {
+  if (r.chainErr) return `<div class="bp-chain err">Ledger: ${esc(r.chainErr)}</div>`;
+  if (!r.chain?.last) return ledger && r.st !== 'offered' && r.st !== 'applied' ? '<div class="bp-chain">Recording on the ledger…</div>' : '';
+  const b = r.ev?.base, chk = r.check;
+  return `<div class="bp-chain"><span class="lk"></span>${r.chain.last.what} on the ledger · block ${r.chain.last.block} · ${txLink(r.chain.last)}` +
+    `<button class="lnk" data-act="check">Check evidence</button><span class="bp-chk"></span></div>` +
+    (r.st === 'verified' && r.chain.verify ? `<div class="bp-note ok">The contract released the ${cash(b.rebate)} rebate: ` +
+      `${fmtGain(b.metric, r.chain.verify.gain)} better, ${fmtGain(b.metric, b.min_gain)} required.${r.ev.after?.simulated ? ' Measurement was a demo value.' : ''}</div>` : '') +
+    (r.st === 'coated' && chk ? `<div class="bp-note warn">Not yet: ${fmtGain(b.metric, chk.gain)} better, ${fmtGain(b.metric, b.min_gain)} required. ` +
+      'No rebate. Re-check with the next measurement.</div>' : '');
+}
+
+const SOURCES = { heat: ['Landsat 8/9 pass', 'Field thermal survey', 'Demo value (simulated)'], energy: ['Smart meter, 12 months', 'Utility bills, 12 months', 'Demo value (simulated)'] };
+function verifyFormHtml(r) {
+  const b = r.ev?.base;
+  if (!b) return '';
+  const heat = b.metric === 'heat', need = b.value - b.min_gain;
+  return `<form class="bp-form" data-f="verify" hidden novalidate>` +
+    `<div class="bp-note">${heat ? `Before: roof ran <b>${b.value.toFixed(1)}°C</b> over nearby roofs. Rebate needs <b>${need.toFixed(1)}°C</b> or less.`
+      : `Before: <b>${(b.value / 1000).toFixed(1)} MWh/yr</b>. Rebate needs <b>${(need / 1000).toFixed(1)} MWh/yr</b> or less.`}</div>` +
+    `<input name="measured" type="number" step="${heat ? '0.1' : '100'}" placeholder="${heat ? 'Measured: °C over nearby roofs' : 'Measured: kWh per year'}">` +
+    `<select name="source">${SOURCES[b.metric].map((s, i) => `<option${i === 2 ? ' selected' : ''}>${s}</option>`).join('')}</select>` +
+    '<div class="bp-err"></div><button class="bp-btn">Submit to the contract</button></form>';
+}
+
+function wireVerify(form, f, redraw) {
+  const err = (t) => (form.querySelector('.bp-err').textContent = t);
+  form.oninput = () => err('');
+  form.onkeydown = (e) => e.stopPropagation();
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const r = prog[pk(f.id)], b = r.ev.base, v = parseFloat(form.elements.measured.value), source = form.elements.source.value;
+    if (!Number.isFinite(v)) return err(b.metric === 'heat' ? 'Enter the measured °C over nearby roofs.' : 'Enter the measured kWh per year.');
+    const ev = { v: 1, kind: 'after', building: pk(f.id), metric: b.metric, value: b.metric === 'heat' ? +v.toFixed(2) : Math.round(v), unit: b.unit,
+      source, simulated: source.startsWith('Demo'), baseline_evidence: r.ev.baseHash, recorded: new Date().toISOString() };
+    form.querySelector('button').disabled = true;
+    try {
+      const hash = await sha(ev), x = await ledgerApi('verify', { id: pk(f.id), measured: ev.value, evidence: hash });
+      if (x.verified) Object.assign(r, { st: 'verified', t: Date.now() }), r.chain.verify = x, r.chain.last = { ...x, what: 'Verified' }, r.ev.after = ev, r.ev.afterHash = hash, delete r.check;
+      else r.check = { gain: x.gain, tx: x.tx }, r.chain.last = { ...x, what: 'Checked' }, (r.chain.checks ??= []).push(x);
+      saveProg(); renderLedger(); redraw();
+    } catch (x) {
+      err(x.message);
+      form.querySelector('button').disabled = false;
+    }
+  };
+}
+
+// Re-hash the evidence held here and compare with what the chain recorded: proof the data wasn't changed afterwards.
+async function checkEvidence(f, r, btn) {
+  const out = btn.parentElement.querySelector('.bp-chk');
+  out.textContent = 'Checking…';
+  try {
+    const rec = await ledgerApi(`building?id=${encodeURIComponent(pk(f.id))}`);
+    const ok = (await sha(r.ev.base)) === rec.baselineEvidence && (!r.ev.after || (await sha(r.ev.after)) === rec.afterEvidence);
+    out.className = `bp-chk ${ok ? 'ok' : 'bad'}`;
+    out.textContent = ok ? `✓ Evidence matches the ledger (${rec.stage})` : '✗ Evidence here differs from the ledger';
+  } catch (e) {
+    out.className = 'bp-chk bad';
+    out.textContent = e.message;
+  }
+}
+
+// Deliver screen: where the ledger is, and every transaction on it, newest first.
+async function renderLedger() {
+  const el = $('ledger');
+  if (!el || !document.body.classList.contains('deliver')) return;
+  if (!ledger) {
+    el.innerHTML = '<div class="eb">Public ledger</div><p class="dlv-empty">Offline. The program is kept in this browser only. Start the blockchain with <code>npm run chain</code> and <code>npm run chain:deploy</code>.</p>';
+    return;
+  }
+  const byTx = {};
+  for (const r of Object.values(prog)) for (const x of Object.values(r.chain ?? {}).flat()) if (x?.tx) byTx[x.tx] = r;
+  let evs = [];
+  try { evs = (await ledgerApi('events')).filter((x) => x.event !== 'VerifierSet').reverse(); } catch {}
+  const label = { Enrolled: 'Enrolled', Installed: 'Installed', Verified: 'Verified · rebate released', NotYetImproved: 'Checked · not yet', DataAnchored: 'Sensor data sealed' };
+  const net = ledger.network === 'local' ? 'local test chain' : ledger.network;
+  el.innerHTML = `<div class="eb">Public ledger</div><p class="led-h"><span class="lk"></span>${net} · contract ` +
+    (ledger.explorer ? `<a href="${ledger.explorer}/address/${ledger.address}" target="_blank" rel="noopener">${short(ledger.address)}</a>` : short(ledger.address)) + '</p>' +
+    (evs.length ? `<ol class="led">${evs.slice(0, 12).map((x) => {
+      const r = byTx[x.tx], who = x.event === 'DataAnchored' ? `${x.readings} readings · ${esc(x.kind)}` : esc(r?.addr ?? (r?.code ? `Roof ${r.code}` : 'Building'));
+      const extra = x.event === 'Verified' ? ` · ${fmtGain(x.metric, x.gain)} better · ${cash(x.rebate)}`
+        : x.event === 'NotYetImproved' ? ` · ${fmtGain(x.metric, x.gain)} better` : '';
+      return `<li class="${x.event}"><b>${label[x.event] ?? x.event}</b><span>${who}${extra}</span><small>block ${x.block} · ${txLink(x)}</small></li>`;
+    }).join('')}</ol>` : '<p class="dlv-empty">No transactions yet. Enrol a building to record its baseline.</p>');
+}
+
+ledgerApi('status').then((s) => { ledger = s; renderLedger(); }).catch(() => renderLedger());
 
 // Offer letters for the optimizer's funded roofs. They open as drafts to review; "Send all" puts every unsent one into
 // the program (new ones keep their draft code, roofs already in the program keep their stage).
@@ -1512,7 +1682,23 @@ document.querySelector('.scn').oninput = (e) => {
 let sensorPin = null, sim = 0, base = null, port = null;
 const SENSOR_AT = [151.2054, -33.8684]; // 104 Clarence St, Sydney CBD
 const GAIN = 1; // on-screen change = GAIN x the change from the first reading (raise to exaggerate)
+// Real board readings are sealed on the ledger in batches of 60 (~1 min): a tamper-evident log of the street sensor.
+// Simulated fallback readings are never sealed.
+let batch = [], sealed = null;
+async function seal(t) {
+  if (!port || !ledger) return;
+  batch.push([Date.now(), +t.toFixed(2)]);
+  if (batch.length < 60) return;
+  const data = { sensor: 'street', at: SENSOR_AT, readings: batch };
+  batch = [];
+  try {
+    const x = await ledgerApi('anchor', { hash: await sha(data), readings: data.readings.length, kind: 'street sensor (Arduino)' });
+    sealed = { ...x, data };
+    renderLedger();
+  } catch {}
+}
 function sensorTemp(t) {
+  seal(t);
   const html = `<b>${t.toFixed(1)}°C</b> <span class="pin-sub">street sensor</span>`;
   if (!sensorPin) {
     sensorPin = new maplibregl.Marker({ element: pin('sensor', html, ICON.sensor), anchor: 'bottom' }).setLngLat(SENSOR_AT).addTo(map);
@@ -1521,7 +1707,8 @@ function sensorTemp(t) {
   sensorPin.getElement().querySelector('.pin-short').innerHTML = html;
   const el = $('sensor'), d = live ? t - live.t : 0;
   el.hidden = false;
-  el.innerHTML = `<i></i>Street sensor <b>${t.toFixed(1)}°C</b>${live ? ` · ${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}°C vs weather model` : ''}`;
+  el.innerHTML = `<i></i>Street sensor <b>${t.toFixed(1)}°C</b>${live ? ` · ${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}°C vs weather model` : ''}` +
+    (sealed ? ` · sealed on ledger, block ${sealed.block}` : '');
 }
 $('sensor-btn').onclick = async () => {
   if (port) return; // already connected; a second open() would fail and start the fallback alongside
@@ -1566,3 +1753,4 @@ async function liveTemp() {
 }
 liveTemp();
 setInterval(liveTemp, 10 * 60e3);
+

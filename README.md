@@ -27,8 +27,9 @@ One page, four steps, built on public satellite and building data for five citie
 2. **Compare** — rank every precinct by extra cooling cost, roof heat or vulnerable residents. Switch between **Now, 2030 and 2050** to see how warming changes the ranking.
 3. **Plan** — pick from six retrofit measures (cool roofs, trees, rooftop solar, insulation, efficient HVAC, smart controls), set a budget, and choose a priority (biggest savings, fastest payback, protect vulnerable, balanced). The optimizer funds the best roofs first and shows savings per year, payback, upfront cost, MWh, CO₂ avoided, and how much better it does than a uniform rollout. Gemini recommends the top 3 measures for that suburb with a reason each.
 4. **Deliver** — generate a one-page council brief (hazard, funded plan, return on investment), then run the **retrofit program**: send coded offer letters to owners of the funded buildings, let owners apply from the public map, and track each roof from Offered to Verified.
+5. **Verify on a public ledger** — every funded building's evidence is recorded on a blockchain, and a smart contract releases the rebate only when a measurement shows the building actually improved: *pay for measured performance, not promises* (see [Blockchain verification](#blockchain-verification)).
 
-A **street sensor** (Arduino over Web Serial) drops a live temperature pin on the map and compares it with the weather model.
+A **street sensor** (Arduino over Web Serial) drops a live temperature pin on the map and compares it with the weather model. Its readings are sealed on the ledger in batches, as a tamper-evident log.
 
 ---
 
@@ -54,6 +55,20 @@ GEMINI_API_KEY=your-key npm run dev
 `GEMINI_MODEL` overrides the model (default `gemini-3.5-flash-lite`).
 
 **Optional — street sensor.** Flash `arduino/sensor/sensor.ino` to an Arduino Uno with a DS18B20 module on A0 (wiring in the file header), close the Serial Monitor, then click **Sensor** in the app and pick the port. Without a board the pin shows a modelled reading.
+
+**Optional — blockchain ledger.** Run a local test blockchain in a second terminal, deploy the contract once, then start the app as usual:
+
+```bash
+npm run chain
+```
+
+```bash
+npm run chain:deploy
+```
+
+The Deliver panel then shows the ledger, and every program step is a real transaction. Without the chain the program still works and stays in your browser. `npm run chain:test` checks the contract's rules against a fresh deployment (14 checks). Restarting `npm run chain` wipes it, so deploy again after each restart.
+
+To use the public **Sepolia** testnet instead, copy `.env.example` to `.env`, set `CHAIN_NETWORK=sepolia` and two **testnet-only** wallet keys funded with free Sepolia test ETH, then run `npm run chain:deploy:sepolia`. Transactions then link to Etherscan. Never put a key that holds real funds in `.env`.
 
 The dev server also tries to start a Cloudflare tunnel used for our team preview. If `cloudflared` is not installed it prints a warning and carries on.
 
@@ -88,6 +103,7 @@ flowchart TD
 
     subgraph Dev["Vite dev server (vite.config.js)"]
         API["/api/rank and /api/brief<br/>key stays server-side"]
+        CAPI["/api/chain/*<br/>council + verifier keys stay server-side"]
     end
 
     LS --> S2
@@ -97,6 +113,8 @@ flowchart TD
     App <--> API
     API <--> GEM["Google Gemini API"]
     ARD["Arduino sensor"] -- Web Serial --> App
+    App <--> CAPI
+    CAPI <--> SC["RetrofitRegistry smart contract<br/>local chain or Sepolia testnet"]
 ```
 
 ### How the numbers are made
@@ -109,6 +127,25 @@ flowchart TD
 
 All figures are modelled planning estimates, not measurements or audits. Some demo-area inputs are compiled by the team.
 
+### Blockchain verification
+
+Councils fund retrofits, but rarely check that the money bought real cooling or savings, and climate data is hard to verify once it has passed through several hands. `contracts/RetrofitRegistry.sol` records each funded building and enforces the program's rules in code:
+
+| Rule | How the contract enforces it |
+| :--- | :--- |
+| A building can't be funded twice | `enrol` reverts if the building is already in the program |
+| Only the council funds; only an independent verifier verifies | Separate roles; the council can't mark its own homework |
+| No rebate without measured improvement | `verify` computes the improvement itself and releases the rebate only if it meets the agreed minimum; otherwise the building stays *Installed* and can be re-checked later |
+| Evidence can't be quietly changed | The SHA-256 of each evidence record (baseline and after) is stored on-chain; the app's **Check evidence** button re-hashes its copy and compares |
+| Sensor data is tamper-evident | Real sensor readings are sealed on-chain in batches of 60 |
+
+Each building is judged on the metric its retrofit actually changes:
+
+- **Cool roofs and tree canopy: roof heat.** The roof's temperature *minus the median of roofs within 250 m on the same satellite pass*, so a cooler day doesn't count as cooling. The baseline comes from the Landsat 8 scene (9 January 2026). The rebate needs 1 °C less excess heat.
+- **Insulation, HVAC, smart controls: annual energy use.** The rebate needs at least half the predicted saving to show up in meter data.
+
+Evidence records stay with the app; only their fingerprints go on-chain, so no personal data is published. What is real and what is not: the contract, its rules and every transaction are real. Baselines come from the Landsat scene or the energy model. **After-work measurements are entered by the verifier, and in this prototype they are demo values**, labelled as such in the app and in the evidence record. In production they would come from the next Landsat pass or 12 months of smart-meter data.
+
 ---
 
 ## Repository layout
@@ -117,9 +154,10 @@ All figures are modelled planning estimates, not measurements or audits. Some de
 ├── index.html            Single-page app shell
 ├── src/main.js           Map, layers, energy model, optimizer, panels, program, sensor
 ├── src/style.css         Design tokens and layout
-├── vite.config.js        Dev server: Gemini proxy (/api/rank, /api/brief), preview tunnel
+├── vite.config.js        Dev server: Gemini proxy (/api/rank, /api/brief), ledger API, preview tunnel
+├── contracts/            RetrofitRegistry.sol, its compiled ABI, testnet deployments
 ├── data/                 Baked buildings, trees, POIs, precincts, Landsat rasters
-├── scripts/              One-off fetchers that produced data/
+├── scripts/              One-off fetchers that produced data/; chain*.mjs compile, deploy, test and serve the ledger
 ├── arduino/sensor/       Street sensor sketch
 ├── docs/                 API notes, design reference, hackathon brief
 ├── CHANGELOG.md          What shipped, item by item
@@ -146,6 +184,9 @@ No AI-generated images or datasets are used. All data comes from the sources bel
 | :--- | :--- | :--- |
 | [MapLibre GL JS](https://maplibre.org/) 6 | BSD-3-Clause | 3D map rendering |
 | [Vite](https://vitejs.dev/) 8 | MIT | Dev server and build |
+| [ethers](https://ethers.org/) 6 | MIT | Talking to the ledger contract |
+| [solc-js](https://github.com/ethereum/solc-js) 0.8 | MIT | Compiling the Solidity contract |
+| [Hardhat](https://hardhat.org/) 3 | MIT | Local test blockchain |
 | [Inter](https://fonts.google.com/specimen/Inter) (Google Fonts) | OFL | UI font |
 
 The Landsat bake scripts also use [Pillow](https://python-pillow.org/) (MIT-CMU). They are not needed to run the app.

@@ -6,12 +6,20 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "chain": "hardhat node",
+    "chain:deploy": "node --env-file-if-exists=.env scripts/chain.mjs deploy",
+    "chain:deploy:sepolia": "node --env-file-if-exists=.env scripts/chain.mjs deploy sepolia",
+    "chain:test": "node scripts/chain-test.mjs",
+    "chain:compile": "node scripts/chain.mjs compile"
   },
   "dependencies": {
+    "ethers": "^6.17.0",
     "maplibre-gl": "^6.11.2"
   },
   "devDependencies": {
+    "hardhat": "^3.19.0",
+    "solc": "^0.8.37",
     "vite": "^8.3.2"
   }
 }

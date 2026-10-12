@@ -1,0 +1,477 @@
+{
+  "compiler": "0.8.37+commit.f401782d.Emscripten.clang",
+  "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "NoEvidence",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotCouncil",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotVerifier",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum RetrofitRegistry.Stage",
+          "name": "have",
+          "type": "uint8"
+        },
+        {
+          "internalType": "enum RetrofitRegistry.Stage",
+          "name": "want",
+          "type": "uint8"
+        }
+      ],
+      "name": "WrongStage",
+      "type": "error"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "seq",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "dataHash",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint32",
+          "name": "readings",
+          "type": "uint32"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "kind",
+          "type": "string"
+        }
+      ],
+      "name": "DataAnchored",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "id",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "enum RetrofitRegistry.Metric",
+          "name": "metric",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "int64",
+          "name": "baseline",
+          "type": "int64"
+        },
+        {
+          "indexed": false,
+          "internalType": "int64",
+          "name": "minGain",
+          "type": "int64"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint64",
+          "name": "rebateCents",
+          "type": "uint64"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "evidence",
+          "type": "bytes32"
+        }
+      ],
+      "name": "Enrolled",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "id",
+          "type": "bytes32"
+        }
+      ],
+      "name": "Installed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "id",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "int64",
+          "name": "gain",
+          "type": "int64"
+        },
+        {
+          "indexed": false,
+          "internalType": "int64",
+          "name": "minGain",
+          "type": "int64"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "evidence",
+          "type": "bytes32"
+        }
+      ],
+      "name": "NotYetImproved",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "id",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "int64",
+          "name": "gain",
+          "type": "int64"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint64",
+          "name": "rebateCents",
+          "type": "uint64"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "evidence",
+          "type": "bytes32"
+        }
+      ],
+      "name": "Verified",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "verifier",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "bool",
+          "name": "allowed",
+          "type": "bool"
+        }
+      ],
+      "name": "VerifierSet",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "dataHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint32",
+          "name": "readings",
+          "type": "uint32"
+        },
+        {
+          "internalType": "string",
+          "name": "kind",
+          "type": "string"
+        }
+      ],
+      "name": "anchor",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "anchors",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "name": "buildings",
+      "outputs": [
+        {
+          "internalType": "enum RetrofitRegistry.Stage",
+          "name": "stage",
+          "type": "uint8"
+        },
+        {
+          "internalType": "enum RetrofitRegistry.Metric",
+          "name": "metric",
+          "type": "uint8"
+        },
+        {
+          "internalType": "int64",
+          "name": "baseline",
+          "type": "int64"
+        },
+        {
+          "internalType": "int64",
+          "name": "measured",
+          "type": "int64"
+        },
+        {
+          "internalType": "int64",
+          "name": "minGain",
+          "type": "int64"
+        },
+        {
+          "internalType": "uint64",
+          "name": "rebateCents",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint64",
+          "name": "enrolledAt",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint64",
+          "name": "installedAt",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint64",
+          "name": "verifiedAt",
+          "type": "uint64"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "baselineEvidence",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "afterEvidence",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "council",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "count",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "id",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "enum RetrofitRegistry.Metric",
+          "name": "metric",
+          "type": "uint8"
+        },
+        {
+          "internalType": "int64",
+          "name": "baseline",
+          "type": "int64"
+        },
+        {
+          "internalType": "int64",
+          "name": "minGain",
+          "type": "int64"
+        },
+        {
+          "internalType": "uint64",
+          "name": "rebateCents",
+          "type": "uint64"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "evidence",
+          "type": "bytes32"
+        }
+      ],
+      "name": "enrol",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "ids",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "id",
+          "type": "bytes32"
+        }
+      ],
+      "name": "markInstalled",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "v",
+          "type": "address"
+        },
+        {
+          "internalType": "bool",
+          "name": "allowed",
+          "type": "bool"
+        }
+      ],
+      "name": "setVerifier",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "verifiers",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "id",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "int64",
+          "name": "measured",
+          "type": "int64"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "evidence",
+          "type": "bytes32"
+        }
+      ],
+      "name": "verify",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x60a0604052348015600e575f5ffd5b5033608052608051610db46100475f395f8181610208015281816102600152818161036d01528181610614015261092b0152610db45ff3fe608060405234801561000f575f5ffd5b50600436106100a6575f3560e01c80636e5cf15c1161006e5780636e5cf15c1461012e57806398d35f20146101d4578063a383f4fb146101dd578063ac9b5671146101f0578063e2c6d41c14610203578063fac333ac14610242575f5ffd5b806306661abd146100aa57806314577873146100c15780632c4a5689146100d657806332be7155146100e95780636c8244871461010c575b5f5ffd5b6002545b6040519081526020015b60405180910390f35b6100d46100cf3660046109e4565b610255565b005b6100d46100e43660046109fb565b610362565b6100fc6100f7366004610a9c565b61041f565b60405190151581526020016100b8565b6100fc61011a366004610ae5565b5f6020819052908152604090205460ff1681565b6101bd61013c3660046109e4565b600160208190525f9182526040909120805491810154600282015460039092015460ff80851694610100810490911693620100008204600790810b94600160501b8404820b94600160901b90940490910b926001600160401b0380831693600160401b8404821693600160801b8104831693600160c01b909104909216918b565b6040516100b89b9a99989796959493929190610b3d565b6100ae60035481565b6100d46101eb366004610bd2565b610609565b6100d46101fe366004610c48565b610920565b61022a7f000000000000000000000000000000000000000000000000000000000000000081565b6040516001600160a01b0390911681526020016100b8565b6100ae6102503660046109e4565b6109c5565b336001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000161461029e5760405163d7b93c0f60e01b815260040160405180910390fd5b5f8181526001602081905260409091205482919060ff16818160038111156102c8576102c8610b05565b146102f3578082604051633150702360e01b81526004016102ea929190610c81565b60405180910390fd5b5f848152600160208190526040808320805460ff1916600217815590910180546001600160401b034216600160801b0267ffffffffffffffff60801b199091161790555185917fbe41fca1598e4969b200426f3e64261a6b868eb77c401109428b0ba1f70b00e391a250505050565b336001600160a01b037f000000000000000000000000000000000000000000000000000000000000000016148015906103aa5750335f9081526020819052604090205460ff16155b156103c8576040516312331aab60e11b815260040160405180910390fd5b60035f81546103d690610cb0565b9190508190557f4747c62c0569d0e0a1f5583573c828c97a5d277ecb642c8472d2d5ded70ec0d2858585856040516104119493929190610cc8565b60405180910390a250505050565b5f83815260016020526040812054849060029060ff168181600381111561044857610448610b05565b1461046a578082604051633150702360e01b81526004016102ea929190610c81565b335f9081526020819052604090205460ff16610499576040516312331aab60e11b815260040160405180910390fd5b846104b75760405163ea1aa62b60e01b815260040160405180910390fd5b5f87815260016020526040812080549091906104dd90899062010000900460070b610d0a565b8254909150600160901b9004600790810b9082900b121561055357815460408051600784810b8252600160901b90930490920b6020830152810188905289907f298cacf2917a85b20da67ef710e65decb24842ea5c5111de1bcac05f18b90ba19060600160405180910390a25f955050506105ff565b81546001600160401b03898116600160501b0271ffffffffffffffff000000000000000000ff1990921691909117600390811784558301889055600183018054428316600160c01b026001600160c01b038216811790925560408051600786900b81529284169190931617602082015290810188905289907f7299150acd3e0f2b453cad44da441f29902ef837a79e495c4daf7b93ebebf21b9060600160405180910390a26001955050505b5050509392505050565b336001600160a01b037f000000000000000000000000000000000000000000000000000000000000000016146106525760405163d7b93c0f60e01b815260040160405180910390fd5b5f8681526001602052604081205487919060ff168181600381111561067957610679610b05565b1461069b578082604051633150702360e01b81526004016102ea929190610c81565b836106b95760405163ea1aa62b60e01b815260040160405180910390fd5b60408051610160810190915280600181526020018960018111156106df576106df610b05565b8152600789810b6020808401919091525f6040808501829052928b900b60608501526001600160401b03808b166080860152421660a085015260c0840181905260e0840181905261010084018990526101209093018390528c835260019081905291208251815491929091839160ff19919091169083600381111561076657610766610b05565b021790555060208201518154829061ff00191661010083600181111561078e5761078e610b05565b021790555060408281015182546060850151608086015171ffffffffffffffffffffffffffffffff000019909216620100006001600160401b039485160267ffffffffffffffff60501b191617600160501b918416919091021767ffffffffffffffff60901b1916600160901b9183169190910217835560a08401516001808501805460c088015160e08901516101008a01519587166fffffffffffffffffffffffffffffffff1990931692909217600160401b91871691909102176fffffffffffffffffffffffffffffffff16600160801b918616919091026001600160c01b031617600160c01b939094169290920292909217905561012084015160028085019190915561014090940151600390930192909255825491820183555f929092527f405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace018a90555189907ff81f3c21759f736dbc2803e39c16ada5372e85757c2d7e5ec12ccbaf038540eb9061090d908b908b908b908b908b90610d3f565b60405180910390a2505050505050505050565b336001600160a01b037f000000000000000000000000000000000000000000000000000000000000000016146109695760405163d7b93c0f60e01b815260040160405180910390fd5b6001600160a01b0382165f8181526020818152604091829020805460ff191685151590811790915591519182527f7a6dd775b9b6aa6ebde6f0c51172ef328eb9658e095364751705f28234e7257c910160405180910390a25050565b600281815481106109d4575f80fd5b5f91825260209091200154905081565b5f602082840312156109f4575f5ffd5b5035919050565b5f5f5f5f60608587031215610a0e575f5ffd5b84359350602085013563ffffffff81168114610a28575f5ffd5b925060408501356001600160401b03811115610a42575f5ffd5b8501601f81018713610a52575f5ffd5b80356001600160401b03811115610a67575f5ffd5b876020828401011115610a78575f5ffd5b949793965060200194505050565b8035600781900b8114610a97575f5ffd5b919050565b5f5f5f60608486031215610aae575f5ffd5b83359250610abe60208501610a86565b929592945050506040919091013590565b80356001600160a01b0381168114610a97575f5ffd5b5f60208284031215610af5575f5ffd5b610afe82610acf565b9392505050565b634e487b7160e01b5f52602160045260245ffd5b60048110610b2957610b29610b05565b9052565b60028110610b2957610b29610b05565b6101608101610b4c828e610b19565b610b59602083018d610b2d565b8a60070b60408301528960070b60608301528860070b60808301526001600160401b03881660a08301526001600160401b03871660c08301526001600160401b03861660e0830152610bb76101008301866001600160401b03169052565b61012082019390935261014001529998505050505050505050565b5f5f5f5f5f5f60c08789031215610be7575f5ffd5b86359550602087013560028110610bfc575f5ffd5b9450610c0a60408801610a86565b9350610c1860608801610a86565b925060808701356001600160401b0381168114610c33575f5ffd5b9598949750929591949360a090920135925050565b5f5f60408385031215610c59575f5ffd5b610c6283610acf565b915060208301358015158114610c76575f5ffd5b809150509250929050565b60408101610c8f8285610b19565b610afe6020830184610b19565b634e487b7160e01b5f52601160045260245ffd5b5f60018201610cc157610cc1610c9c565b5060010190565b84815263ffffffff8416602082015260606040820152816060820152818360808301375f818301608090810191909152601f909201601f191601019392505050565b600782810b9082900b03677fffffffffffffff198112677fffffffffffffff82131715610d3957610d39610c9c565b92915050565b60a08101610d4d8288610b2d565b8560070b60208301528460070b60408301526001600160401b0384166060830152826080830152969550505050505056fea2646970667358221220c80f17a9959ab97e1596d5069d0a3f1d796dbcd03315d04e6d712ce81c5f26c264736f6c63430008250033"
+}
